@@ -1,3 +1,9 @@
+# --------------------
+# music-quiz11.1
+# Lean Pillow Farbanalyse des Albumcovers.
+# --------------------
+
+
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from flask import Flask, render_template_string, redirect, url_for, request, session, jsonify
@@ -7,11 +13,11 @@ import time
 from dotenv import load_dotenv
 import json
 
-# NEUE IMPORTE für die Farbanalyse
-import colorgram
+# Angepasste Importe für die schlanke Farbanalyse
 import requests
 from io import BytesIO
-import colorsys # ### NEU: Für die Umwandlung von RGB zu HSV (Sättigung/Helligkeit) ###
+import colorsys 
+from PIL import Image # Pillow wird jetzt direkt genutzt
 
 load_dotenv()
 
@@ -35,9 +41,9 @@ scope = "user-read-currently-playing user-modify-playback-state"
 PALETTES = {
     'album': {
         'name': 'Album-Cover',
-        'highlight_color': '#C06EF3', # Platzhalter, wird dynamisch ersetzt
-        'button_hover_color': '#9F47D6', # Platzhalter
-        'button_text_color': '#FFFFFF' # Platzhalter
+        'highlight_color': '#C06EF3',
+        'button_hover_color': '#9F47D6',
+        'button_text_color': '#FFFFFF'
     },
     'default': {
         'name': 'Lavendel (Standard)',
@@ -70,12 +76,11 @@ PALETTES = {
         'button_text_color': '#FFFFFF'
     },
     'white': {
-        'name': 'Weiss',
+        'name': 'Weiß',
         'highlight_color': "#FFFFFF",
         'button_hover_color': "#E6E6E6",
         'button_text_color': '#1a1a1a'
     }
-
 }
 # --- ENDE DER FARBPALETTE ---
 
@@ -91,13 +96,11 @@ button_hover_scale = 1.05
 progress_bar_hover_increase_px = 3
 # --- ENDE DER EINSTELLUNGEN ---
 
-# Konstante für den Session-Key
 TOKEN_INFO_KEY = 'spotify_token_info'
 
 # --- FUNKTIONEN FÜR DIE FARBANALYSE ---
 
 def darken_color(hex_color, amount=0.85):
-    """Dunkelt eine Hex-Farbe um einen bestimmten Faktor ab."""
     try:
         hex_color = hex_color.lstrip('#')
         rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
@@ -107,7 +110,6 @@ def darken_color(hex_color, amount=0.85):
         return hex_color
 
 def get_text_color_for_bg(hex_color):
-    """Ermittelt, ob für eine Hintergrundfarbe heller oder dunkler Text besser lesbar ist."""
     try:
         hex_color = hex_color.lstrip('#')
         r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
@@ -118,49 +120,46 @@ def get_text_color_for_bg(hex_color):
 
 def analyze_album_art(image_url):
     """
-    Analysiert ein Album-Cover. Findet primär die beste gesättigte Farbe.
-    Falls das nicht klappt, wird die hellste Farbe des Covers als Fallback genutzt.
+    Analysiert ein Album-Cover mit einem schlanken, performanten Algorithmus,
+    der Pillow direkt nutzt.
     """
     MIN_SATURATION = 0.25 
-    MIN_VALUE = 0.5 
+    MIN_VALUE = 0.5
 
     try:
         response = requests.get(image_url, stream=True)
         response.raise_for_status()
-        image_bytes = BytesIO(response.content)
-        raw_colors = colorgram.extract(image_bytes, 12)
         
+        with Image.open(BytesIO(response.content)) as img:
+            # 1. Bild extrem verkleinern für massive Performance-Steigerung
+            img.thumbnail((64, 64))
+            
+            # 2. Schnelle Extraktion einer kleinen Farbpalette (8 Farben)
+            paletted_img = img.convert("RGB").quantize(colors=16)
+            palette = paletted_img.getpalette()
+            
+            # Die Palette ist eine flache Liste [R1,G1,B1, R2,G2,B2, ...], wir gruppieren sie
+            raw_colors_rgb = [tuple(palette[i:i+3]) for i in range(0, len(palette), 3)]
+
         candidate_colors = []
-        for color in raw_colors:
-            r, g, b = color.rgb.r, color.rgb.g, color.rgb.b
+        for r, g, b in raw_colors_rgb:
             h, s, v = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)
 
             if s >= MIN_SATURATION and v >= MIN_VALUE:
-                candidate_colors.append({'color': color, 'saturation': s})
+                candidate_colors.append({'rgb': (r, g, b), 'saturation': s, 'value': v})
         
         highlight_color = None
         if candidate_colors:
-            best_candidate = sorted(candidate_colors, key=lambda x: x['saturation'], reverse=True)[0]
-            c = best_candidate['color'].rgb
-            highlight_color = f"#{c.r:02x}{c.g:02x}{c.b:02x}"
-        elif raw_colors:
-            print("Keine gesättigte Farbe gefunden. Suche nach der hellsten Farbe als Fallback.")
-            brightest_color = None
-            max_luminance = -1
-            for color in raw_colors:
-                r, g, b = color.rgb.r, color.rgb.g, color.rgb.b
-                luminance = (0.299 * r + 0.587 * g + 0.114 * b)
-                if luminance > max_luminance:
-                    max_luminance = luminance
-                    brightest_color = color
-            
-            if brightest_color:
-                c = brightest_color.rgb
-                highlight_color = f"#{c.r:02x}{c.g:02x}{c.b:02x}"
+            best_candidate = sorted(candidate_colors, key=lambda x: x['saturation'] * x['value'], reverse=True)[0]
+            r, g, b = best_candidate['rgb']
+            highlight_color = f"#{r:02x}{g:02x}{b:02x}"
+        elif raw_colors_rgb:
+            brightest_color = max(raw_colors_rgb, key=lambda c: (0.299*c[0] + 0.587*c[1] + 0.114*c[2]))
+            r, g, b = brightest_color
+            highlight_color = f"#{r:02x}{g:02x}{b:02x}"
 
         if not highlight_color:
-            print("Konnte keine Farbe analysieren, nutze Standard-Fallback.")
-            return PALETTES['white']
+            return PALETTES['default']
 
         return {
             'name': 'Album-Cover',
@@ -173,11 +172,9 @@ def analyze_album_art(image_url):
         print(f"Fehler bei der Farbanalyse: {e}")
         return PALETTES['default']
 
-
 ### 🧠 HELFER-FUNKTIONEN FÜR DIE AUTHENTIFIZIERUNG ###
 
 def create_spotify_oauth():
-    """Erstellt eine SpotifyOAuth-Instanz und liest die Konfiguration aus den Umgebungsvariablen."""
     return SpotifyOAuth(
         client_id=os.environ.get('CLIENT_ID'),
         client_secret=os.environ.get('CLIENT_SECRET'),
@@ -187,7 +184,6 @@ def create_spotify_oauth():
     )
 
 def get_token():
-    """Holt das Token aus der Session, falls vorhanden, und erneuert es bei Bedarf."""
     token_info = session.get(TOKEN_INFO_KEY, None)
     if not token_info:
         return None
@@ -202,7 +198,6 @@ def get_token():
     return token_info
 
 def get_spotify_client():
-    """Erstellt einen Spotipy-Client, wenn der Nutzer angemeldet ist."""
     token_info = get_token()
     if not token_info:
         return None
@@ -213,14 +208,12 @@ def get_spotify_client():
 
 @app.route("/login")
 def login():
-    """Leitet den Nutzer zur Spotify-Anmeldeseite weiter."""
     sp_oauth = create_spotify_oauth()
     auth_url = sp_oauth.get_authorize_url()
     return redirect(auth_url)
 
 @app.route("/logout")
 def logout():
-    """Meldet den Nutzer ab, indem die Session geleert wird."""
     session.pop(TOKEN_INFO_KEY, None)
     session.pop('quiz_state', None)
     session.pop('player_mode', None)
@@ -228,7 +221,6 @@ def logout():
 
 @app.route("/callback")
 def callback():
-    """Wird von Spotify nach der Anmeldung aufgerufen."""
     sp_oauth = create_spotify_oauth()
     code = request.args.get('code')
     token_info = sp_oauth.get_access_token(code)
@@ -319,17 +311,9 @@ def home():
             original_album_name = album_name
             
             terms_to_remove = [
-                r"\s*-\s*\d{4}\s*Remastered.*", r"\s*-\s*Remastered.*",
-                r"\s*-\s*\d{4}\s*Remaster.*", r"\s*-\s*Remaster.*",
-                r"\(Remastered\)", r"\[Remastered\]",
-                r"\(Remaster\)", r"\[Remaster\]",
-                r"\s+-\s*Live.*", r"\(Live\)", r"\[Live\]",
-                r"\s*-\s*Edit.*", r"\(Edit\)",
-                r"\s*-\s*Single.*",  r"\(Single Version\)",
-                r"\s*-\s*Mono.*", r"\(Mono Version\)",
-                r"\s*-\s*Stereo.*", r"\(Stereo Version\)",
-                r"\s*-\s*Original.*", r"\(Original Version\)", r"\(Original\)",
-                r"\s*-\s*Radio.*", r"\(Radio Version\)", r"\(Radio\)"
+                r"\s*-\s*\d{4}\s*Remastered.*", r"\s*-\s*Remastered.*", r"\(Remastered\)",
+                r"\(Live\)", r"\[Live\]", r"\s*-\s*Edit.*", r"\(Single Version\)", r"\(Mono Version\)",
+                r"\(Stereo Version\)", r"\(Original Version\)", r"\(Radio\)"
             ]
             
             cleaned_track_name = track_name_raw
@@ -381,15 +365,13 @@ def home():
             temp_palettes['album'] = colors
 
         options_html = ""
+        album_theme_active_class = "album-theme-active" if theme_name == 'album' else ""
+        main_dot_style = f"background-color: {colors['highlight_color']};" if theme_name != 'album' else ""
+        
         for key, palette in temp_palettes.items():
-            # ### Änderung 1 von 3: Spezielles Styling für den Album-Button in der Auswahl ###
             album_dot_class = "album-theme-active" if key == 'album' else ""
             dot_style = f'background-color: {palette["highlight_color"]};' if key != 'album' else ''
             options_html += f'<a href="/set-theme/{key}" class="theme-dot {album_dot_class}" style="{dot_style}" title="{palette["name"]}"></a>'
-
-        # ### Änderung 2 von 3: Die Klasse für den Haupt-Button definieren ###
-        album_theme_active_class = "album-theme-active" if theme_name == 'album' else ""
-        main_dot_style = f"background-color: {colors['highlight_color']};" if theme_name != 'album' else ""
 
         theme_selector_html = f"""
         <div class="theme-picker">
@@ -454,9 +436,9 @@ def home():
             .theme-dot {{ width: 24px; height: 24px; border-radius: 50%; border: 2px solid #555; transition: transform 0.2s, background 0.3s; display: block; cursor: pointer; }}
             .theme-dot:hover {{ transform: scale(1.2); }}
             .main-dot {{ width: 30px; height: 30px; border-color: #888; }}
-            .album-theme-active {{
-                background: #FFC700;
-                background: linear-gradient(135deg,rgba(246, 255, 0, 1) 0%, rgba(255, 199, 0, 1) 15%, rgba(255, 117, 0, 1) 23%, rgba(255, 0, 0, 1) 33%, rgba(218, 0, 255, 1) 47%, rgba(117, 82, 255, 1) 60%, rgba(0, 178, 255, 1) 70%, rgba(0, 255, 133, 1) 80%, rgba(246, 255, 0, 1) 100%);
+            
+            .album-theme-active {{ 
+                background: linear-gradient(135deg,rgba(246, 255, 0, 1) 0%, rgba(255, 199, 0, 1) 15%, rgba(255, 117, 0, 1) 25%, rgba(255, 0, 0, 1) 33%, rgba(218, 0, 255, 1) 47%, rgba(117, 82, 255, 1) 60%, rgba(0, 178, 255, 1) 70%, rgba(0, 255, 133, 1) 80%, rgba(246, 255, 0, 1) 100%);
             }}
 
         </style>
