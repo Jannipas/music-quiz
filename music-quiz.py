@@ -7,6 +7,12 @@ import time
 from dotenv import load_dotenv
 import json
 
+# NEUE IMPORTE für die Farbanalyse
+import colorgram
+import requests
+from io import BytesIO
+import colorsys # ### NEU: Für die Umwandlung von RGB zu HSV (Sättigung/Helligkeit) ###
+
 load_dotenv()
 
 # 1. FLASK-ANWENDUNG INITIALISIEREN
@@ -23,13 +29,18 @@ class FlaskSessionCacheHandler(spotipy.cache_handler.CacheHandler):
     def save_token_to_cache(self, token_info):
         self.session['spotify_token_info'] = token_info
         
-# Scope kann global bleiben
 scope = "user-read-currently-playing user-modify-playback-state"
 
 # --- FARBPALETTEN ---
 PALETTES = {
+    'album': {
+        'name': 'Album-Cover',
+        'highlight_color': '#C06EF3', # Platzhalter, wird dynamisch ersetzt
+        'button_hover_color': '#9F47D6', # Platzhalter
+        'button_text_color': '#FFFFFF' # Platzhalter
+    },
     'default': {
-        'name': 'Lila (Standard)',
+        'name': 'Lavendel (Standard)',
         'highlight_color': '#C06EF3',
         'button_hover_color': '#9F47D6',
         'button_text_color': '#FFFFFF'
@@ -57,12 +68,19 @@ PALETTES = {
         'highlight_color': '#F56E28',
         'button_hover_color': '#C45820',
         'button_text_color': '#FFFFFF'
+    },
+    'white': {
+        'name': 'Weiss',
+        'highlight_color': "#FFFFFF",
+        'button_hover_color': "#E6E6E6",
+        'button_text_color': '#1a1a1a'
     }
+
 }
 # --- ENDE DER FARBPALETTE ---
 
 # --- STATISCHE EINSTELLUNGEN ---
-wave_animation_speed = 60 #os.environ.get('WAVE_SPEED')
+wave_animation_speed = 60
 polling_interval_seconds = 3
 arrow_size = "60px"
 arrow_thickness = 4
@@ -75,6 +93,86 @@ progress_bar_hover_increase_px = 3
 
 # Konstante für den Session-Key
 TOKEN_INFO_KEY = 'spotify_token_info'
+
+# --- FUNKTIONEN FÜR DIE FARBANALYSE ---
+
+def darken_color(hex_color, amount=0.85):
+    """Dunkelt eine Hex-Farbe um einen bestimmten Faktor ab."""
+    try:
+        hex_color = hex_color.lstrip('#')
+        rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        darker_rgb = tuple(int(c * amount) for c in rgb)
+        return "#%02x%02x%02x" % darker_rgb
+    except:
+        return hex_color
+
+def get_text_color_for_bg(hex_color):
+    """Ermittelt, ob für eine Hintergrundfarbe heller oder dunkler Text besser lesbar ist."""
+    try:
+        hex_color = hex_color.lstrip('#')
+        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b)
+        return '#1a1a1a' if luminance > 150 else '#FFFFFF'
+    except:
+        return '#FFFFFF'
+
+def analyze_album_art(image_url):
+    """
+    Analysiert ein Album-Cover. Findet primär die beste gesättigte Farbe.
+    Falls das nicht klappt, wird die hellste Farbe des Covers als Fallback genutzt.
+    """
+    MIN_SATURATION = 0.25 
+    MIN_VALUE = 0.5 
+
+    try:
+        response = requests.get(image_url, stream=True)
+        response.raise_for_status()
+        image_bytes = BytesIO(response.content)
+        raw_colors = colorgram.extract(image_bytes, 12)
+        
+        candidate_colors = []
+        for color in raw_colors:
+            r, g, b = color.rgb.r, color.rgb.g, color.rgb.b
+            h, s, v = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)
+
+            if s >= MIN_SATURATION and v >= MIN_VALUE:
+                candidate_colors.append({'color': color, 'saturation': s})
+        
+        highlight_color = None
+        if candidate_colors:
+            best_candidate = sorted(candidate_colors, key=lambda x: x['saturation'], reverse=True)[0]
+            c = best_candidate['color'].rgb
+            highlight_color = f"#{c.r:02x}{c.g:02x}{c.b:02x}"
+        elif raw_colors:
+            print("Keine gesättigte Farbe gefunden. Suche nach der hellsten Farbe als Fallback.")
+            brightest_color = None
+            max_luminance = -1
+            for color in raw_colors:
+                r, g, b = color.rgb.r, color.rgb.g, color.rgb.b
+                luminance = (0.299 * r + 0.587 * g + 0.114 * b)
+                if luminance > max_luminance:
+                    max_luminance = luminance
+                    brightest_color = color
+            
+            if brightest_color:
+                c = brightest_color.rgb
+                highlight_color = f"#{c.r:02x}{c.g:02x}{c.b:02x}"
+
+        if not highlight_color:
+            print("Konnte keine Farbe analysieren, nutze Standard-Fallback.")
+            return PALETTES['white']
+
+        return {
+            'name': 'Album-Cover',
+            'highlight_color': highlight_color,
+            'button_hover_color': darken_color(highlight_color),
+            'button_text_color': get_text_color_for_bg(highlight_color)
+        }
+
+    except Exception as e:
+        print(f"Fehler bei der Farbanalyse: {e}")
+        return PALETTES['default']
+
 
 ### 🧠 HELFER-FUNKTIONEN FÜR DIE AUTHENTIFIZIERUNG ###
 
@@ -142,56 +240,18 @@ def callback():
 def home():
     sp = get_spotify_client()
     
-    # Wähle die Farbpalette basierend auf der Session aus
     theme_name = session.get('theme', 'default')
-    colors = PALETTES.get(theme_name, PALETTES['default'])
+    colors = PALETTES.get(theme_name, PALETTES['default']).copy()
 
     if not sp:
-        # Login-Seite
         login_html = f"""
         <!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Login</title>
         <style>
-            body {{
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                background-color: #121212;
-                color: #B3B3B3;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: flex-start;
-                min-height: 100vh;
-                margin: 0;
-                text-align: center;
-                padding-top: 5vh;
-                padding-bottom: 5vh;
-            }}
-            .container {{
-                width: calc(100% - 2rem);
-                max-width: 600px;
-                padding: 3rem;
-                border-radius: 12px;
-                background-color: #1a1a1a;
-                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-            }}
-            h1 {{
-                color: #FFFFFF;
-                font-size: clamp(1.5rem, 6vw, 2.5rem);
-                margin-bottom: 2rem;
-            }}
-            .button {{
-                padding: 12px 24px;
-                background-color: {colors['highlight_color']};
-                color: {colors['button_text_color']};
-                text-decoration: none;
-                border-radius: 50px;
-                font-weight: bold;
-                transition: background-color 0.3s, transform 0.3s;
-                display: inline-block;
-            }}
-            .button:hover {{
-                background-color: {colors['button_hover_color']};
-                transform: scale(1.05);
-            }}
+            body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #121212; color: #B3B3B3; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; margin: 0; text-align: center; padding-top: 5vh; padding-bottom: 5vh; }}
+            .container {{ width: calc(100% - 2rem); max-width: 600px; padding: 3rem; border-radius: 12px; background-color: #1a1a1a; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5); }}
+            h1 {{ color: #FFFFFF; font-size: clamp(1.5rem, 6vw, 2.5rem); margin-bottom: 2rem; }}
+            .button {{ padding: 12px 24px; background-color: {colors['highlight_color']}; color: {colors['button_text_color']}; text-decoration: none; border-radius: 50px; font-weight: bold; transition: background-color 0.3s, transform 0.3s; display: inline-block; }}
+            .button:hover {{ background-color: {colors['button_hover_color']}; transform: scale(1.05); }}
         </style></head><body><div class="container">
             <h1>Song Quiz</h1>
             <a href="/login" class="button">Mit grünem Musikstreamingdienst anmelden</a>
@@ -203,6 +263,14 @@ def home():
         current_track = sp.currently_playing()
         if not current_track or not current_track.get('item'):
             raise ValueError("Kein abspielbarer Song gefunden.")
+            
+        album_image_url = "https://via.placeholder.com/300/1a1a1a?text=Error"
+        if current_track["item"]["album"]["images"]:
+            album_image_url = current_track["item"]["album"]["images"][0]["url"]
+
+        if theme_name == 'album':
+            dynamic_palette = analyze_album_art(album_image_url)
+            colors.update(dynamic_palette)
 
         current_track_id = current_track['item']['id']
         quiz_state = session.get('quiz_state', {})
@@ -212,8 +280,6 @@ def home():
             session['quiz_state'] = quiz_state
             
         show_solution = is_player_mode or quiz_state.get('is_solved', False)
-        
-        # ... (Logik zur Song-Anzeige bleibt gleich) ...
         progress_ms = current_track.get('progress_ms', 0)
         duration_ms = current_track['item'].get('duration_ms', 0)
         is_playing = current_track.get('is_playing', False)
@@ -240,10 +306,7 @@ def home():
         artists_string = ", ".join([artist["name"] for artist in current_track["item"]["artists"]])
         album_name = current_track["item"]["album"]["name"]
         initial_release_year = int(current_track["item"]["album"]["release_date"].split('-')[0])
-        album_image_url = "https://via.placeholder.com/300/1a1a1a?text=Error"
-        if current_track["item"]["album"]["images"]:
-            album_image_url = current_track["item"]["album"]["images"][0]["url"]
-
+        
         if show_solution:
             display_title = track_name_raw
             display_artist = artists_string
@@ -296,7 +359,7 @@ def home():
             initial_year_html = ""
             original_info_html = ""
             prominent_year_html = f'<p class="prominent-year">{initial_release_year}</p>'
-            if original_release_year < initial_release_year: #or track_name_raw != cleaned_track_name:
+            if original_release_year < initial_release_year:
                 prominent_year_html = f'<p class="prominent-year">{original_release_year}</p>'
                 initial_year_html = f'<p><strong>Veröffentlichungsjahr:</strong> {initial_release_year}</p>'
                 original_info_html = f"""<div class="info-box"><h3>Originalversion</h3><p><strong>Original-Titel für Suche:</strong> {cleaned_track_name}</p><p><strong>Original-Album:</strong> {original_album_name}</p></div>"""
@@ -313,14 +376,24 @@ def home():
             </div>
             """
         
-        # HTML-Block für den interaktiven Farbwähler erstellen
+        temp_palettes = PALETTES.copy()
+        if theme_name == 'album':
+            temp_palettes['album'] = colors
+
         options_html = ""
-        for key, palette in PALETTES.items():
-            options_html += f'<a href="/set-theme/{key}" class="theme-dot" style="background-color: {palette["highlight_color"]};" title="{palette["name"]}"></a>'
+        for key, palette in temp_palettes.items():
+            # ### Änderung 1 von 3: Spezielles Styling für den Album-Button in der Auswahl ###
+            album_dot_class = "album-theme-active" if key == 'album' else ""
+            dot_style = f'background-color: {palette["highlight_color"]};' if key != 'album' else ''
+            options_html += f'<a href="/set-theme/{key}" class="theme-dot {album_dot_class}" style="{dot_style}" title="{palette["name"]}"></a>'
+
+        # ### Änderung 2 von 3: Die Klasse für den Haupt-Button definieren ###
+        album_theme_active_class = "album-theme-active" if theme_name == 'album' else ""
+        main_dot_style = f"background-color: {colors['highlight_color']};" if theme_name != 'album' else ""
 
         theme_selector_html = f"""
         <div class="theme-picker">
-            <div id="theme-picker-toggle" class="theme-dot main-dot" style="background-color: {colors['highlight_color']};" title="Farbe ändern"></div>
+            <div id="theme-picker-toggle" class="theme-dot main-dot {album_theme_active_class}" style="{main_dot_style}" title="Farbe ändern"></div>
             <div id="theme-options" class="theme-options-container">
                 {options_html}
             </div>
@@ -375,53 +448,17 @@ def home():
             .slider:before {{ position: absolute; content: ""; height: 22px; width: 22px; left: 3px; bottom: 3px; background-color: #1a1a1a; transition: .4s; border-radius: 50%; }}
             input:checked + .slider {{ background-color: {colors['highlight_color']}; }}
             input:checked + .slider:before {{ transform: translateX(22px); }}
-            
-            /* --- CSS für den interaktiven Farbwähler --- */
-            .theme-picker {{
-                position: relative;
-                margin-top: 25px;
-                margin-bottom: 20px;
-                display: flex;
-                justify-content: center;
+            .theme-picker {{ position: relative; margin-top: 25px; margin-bottom: 20px; display: flex; justify-content: center; }}
+            .theme-options-container {{ position: absolute; bottom: 130%; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; padding: 10px; background-color: #282828; border-radius: 50px; box-shadow: 0 4px 10px rgba(0,0,0,0.4); opacity: 0; visibility: hidden; transform: translate(-50%, 10px); transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s; }}
+            .theme-options-container.active {{ opacity: 1; visibility: visible; transform: translate(-50%, 0); }}
+            .theme-dot {{ width: 24px; height: 24px; border-radius: 50%; border: 2px solid #555; transition: transform 0.2s, background 0.3s; display: block; cursor: pointer; }}
+            .theme-dot:hover {{ transform: scale(1.2); }}
+            .main-dot {{ width: 30px; height: 30px; border-color: #888; }}
+            .album-theme-active {{
+                background: #FFC700;
+                background: linear-gradient(135deg,rgba(246, 255, 0, 1) 0%, rgba(255, 199, 0, 1) 15%, rgba(255, 117, 0, 1) 23%, rgba(255, 0, 0, 1) 33%, rgba(218, 0, 255, 1) 47%, rgba(117, 82, 255, 1) 60%, rgba(0, 178, 255, 1) 70%, rgba(0, 255, 133, 1) 80%, rgba(246, 255, 0, 1) 100%);
             }}
-            .theme-options-container {{
-                position: absolute;
-                bottom: 130%;
-                left: 50%;
-                transform: translateX(-50%);
-                display: flex;
-                gap: 12px;
-                padding: 10px;
-                background-color: #282828;
-                border-radius: 50px;
-                box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-                opacity: 0;
-                visibility: hidden;
-                transform: translate(-50%, 10px);
-                transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
-            }}
-            .theme-options-container.active {{
-                opacity: 1;
-                visibility: visible;
-                transform: translate(-50%, 0);
-            }}
-            .theme-dot {{
-                width: 24px;
-                height: 24px;
-                border-radius: 50%;
-                border: 2px solid #555;
-                transition: transform 0.2s;
-                display: block;
-                cursor: pointer;
-            }}
-            .theme-dot:hover {{
-                transform: scale(1.2);
-            }}
-            .main-dot {{
-                 width: 30px;
-                 height: 30px;
-                 border-color: #888;
-            }}
+
         </style>
         </head>
         <body>
@@ -456,16 +493,13 @@ def home():
                 setInterval(function() {{ fetch('/check-song').then(response => response.ok ? response.json() : Promise.reject('Network response was not ok')).then(data => {{ if (data && data.track_id !== initialTrackId) {{ window.location.reload(); }} }}).catch(error => console.error('Error during polling:', error)); }}, pollingInterval);
                 const playerModeToggle = document.getElementById('playerMode');
                 if (playerModeToggle) {{ playerModeToggle.addEventListener('change', function() {{ const isEnabled = this.checked; fetch('/toggle-player-mode', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{ playerMode: isEnabled }}) }}).then(response => response.ok ? response.json() : Promise.reject('Failed to toggle mode')).then(data => {{ if (data.success) {{ window.location.reload(); }} }}).catch(error => console.error('Error:', error)); }}); }}
-                
                 const themePickerToggle = document.getElementById('theme-picker-toggle');
                 const themeOptions = document.getElementById('theme-options');
-
                 if (themePickerToggle && themeOptions) {{
                     themePickerToggle.addEventListener('click', function(event) {{
                         event.stopPropagation(); 
                         themeOptions.classList.toggle('active');
                     }});
-
                     document.addEventListener('click', function() {{
                         if (themeOptions.classList.contains('active')) {{
                             themeOptions.classList.remove('active');
@@ -487,7 +521,6 @@ def home():
         return render_template_string(error_html)
 
 
-# Die restlichen Routen müssen jetzt auch den Spotify-Client über die Helfer-Funktion holen
 @app.route("/check-song")
 def check_song():
     sp = get_spotify_client()
