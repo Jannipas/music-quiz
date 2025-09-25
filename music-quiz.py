@@ -4,7 +4,10 @@ from flask import Flask, render_template_string, redirect, url_for, request, ses
 import re
 import os
 import time
+from dotenv import load_dotenv
 import json
+
+load_dotenv()
 
 # 1. FLASK-ANWENDUNG INITIALISIEREN
 app = Flask(__name__)
@@ -59,7 +62,7 @@ PALETTES = {
 # --- ENDE DER FARBPALETTE ---
 
 # --- STATISCHE EINSTELLUNGEN ---
-wave_animation_speed = 60
+wave_animation_speed = 60 #os.environ.get('WAVE_SPEED')
 polling_interval_seconds = 3
 arrow_size = "60px"
 arrow_thickness = 4
@@ -369,7 +372,7 @@ def home():
             .switch {{ position: relative; display: inline-block; width: 50px; height: 28px; }}
             .switch input {{ opacity: 0; width: 0; height: 0; }}
             .slider {{ position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #444; transition: .4s; border-radius: 28px; }}
-            .slider:before {{ position: absolute; content: ""; height: 22px; width: 22px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }}
+            .slider:before {{ position: absolute; content: ""; height: 22px; width: 22px; left: 3px; bottom: 3px; background-color: #1a1a1a; transition: .4s; border-radius: 50%; }}
             input:checked + .slider {{ background-color: {colors['highlight_color']}; }}
             input:checked + .slider:before {{ transform: translateX(22px); }}
             
