@@ -1,6 +1,6 @@
 # --------------------
-# music-quiz11.2
-# Webbrowser icon.png & icon.svg
+# music-quiz12.0
+# Button for playing a random song from (my) playlist + Restructured controls layout
 # --------------------
 
 
@@ -16,7 +16,7 @@ import json
 # Angepasste Importe für die schlanke Farbanalyse
 import requests
 from io import BytesIO
-import colorsys 
+import colorsys
 from PIL import Image # Pillow wird jetzt direkt genutzt
 
 load_dotenv()
@@ -34,7 +34,7 @@ class FlaskSessionCacheHandler(spotipy.cache_handler.CacheHandler):
 
     def save_token_to_cache(self, token_info):
         self.session['spotify_token_info'] = token_info
-        
+
 scope = "user-read-currently-playing user-modify-playback-state"
 
 # --- FARBPALETTEN ---
@@ -123,21 +123,21 @@ def analyze_album_art(image_url):
     Analysiert ein Album-Cover mit einem schlanken, performanten Algorithmus,
     der Pillow direkt nutzt.
     """
-    MIN_SATURATION = 0.25 
+    MIN_SATURATION = 0.25
     MIN_VALUE = 0.5
 
     try:
         response = requests.get(image_url, stream=True)
         response.raise_for_status()
-        
+
         with Image.open(BytesIO(response.content)) as img:
             # 1. Bild extrem verkleinern für massive Performance-Steigerung
             img.thumbnail((64, 64))
-            
+
             # 2. Schnelle Extraktion einer kleinen Farbpalette (8 Farben)
             paletted_img = img.convert("RGB").quantize(colors=16)
             palette = paletted_img.getpalette()
-            
+
             # Die Palette ist eine flache Liste [R1,G1,B1, R2,G2,B2, ...], wir gruppieren sie
             raw_colors_rgb = [tuple(palette[i:i+3]) for i in range(0, len(palette), 3)]
 
@@ -147,7 +147,7 @@ def analyze_album_art(image_url):
 
             if s >= MIN_SATURATION and v >= MIN_VALUE:
                 candidate_colors.append({'rgb': (r, g, b), 'saturation': s, 'value': v})
-        
+
         highlight_color = None
         if candidate_colors:
             best_candidate = sorted(candidate_colors, key=lambda x: x['saturation'] * x['value'], reverse=True)[0]
@@ -194,7 +194,7 @@ def get_token():
         sp_oauth = create_spotify_oauth()
         token_info = sp_oauth.refresh_access_token(token_info['refresh_token'])
         session[TOKEN_INFO_KEY] = token_info
-        
+
     return token_info
 
 def get_spotify_client():
@@ -224,14 +224,14 @@ def callback():
     sp_oauth = create_spotify_oauth()
     code = request.args.get('code')
     token_info = sp_oauth.get_access_token(code)
-    
+
     session[TOKEN_INFO_KEY] = token_info
     return redirect(url_for('home'))
 
 @app.route("/")
 def home():
     sp = get_spotify_client()
-    
+
     theme_name = session.get('theme', 'default')
     colors = PALETTES.get(theme_name, PALETTES['default']).copy()
 
@@ -255,7 +255,7 @@ def home():
         current_track = sp.currently_playing()
         if not current_track or not current_track.get('item'):
             raise ValueError("Kein abspielbarer Song gefunden.")
-            
+
         album_image_url = "https://via.placeholder.com/300/1a1a1a?text=Error"
         if current_track["item"]["album"]["images"]:
             album_image_url = current_track["item"]["album"]["images"][0]["url"]
@@ -266,11 +266,11 @@ def home():
 
         current_track_id = current_track['item']['id']
         quiz_state = session.get('quiz_state', {})
-        
+
         if current_track_id != quiz_state.get('track_id'):
             quiz_state = {'track_id': current_track_id, 'is_solved': False}
             session['quiz_state'] = quiz_state
-            
+
         show_solution = is_player_mode or quiz_state.get('is_solved', False)
         progress_ms = current_track.get('progress_ms', 0)
         duration_ms = current_track['item'].get('duration_ms', 0)
@@ -298,7 +298,7 @@ def home():
         artists_string = ", ".join([artist["name"] for artist in current_track["item"]["artists"]])
         album_name = current_track["item"]["album"]["name"]
         initial_release_year = int(current_track["item"]["album"]["release_date"].split('-')[0])
-        
+
         if show_solution:
             display_title = track_name_raw
             display_artist = artists_string
@@ -309,19 +309,27 @@ def home():
 
             original_release_year = initial_release_year
             original_album_name = album_name
-            
+
             terms_to_remove = [
-                r"\s*-\s*\d{4}\s*Remastered.*", r"\s*-\s*Remastered.*", r"\(Remastered\)",
-                r"\(Live\)", r"\[Live\]", r"\s*-\s*Edit.*", r"\(Single Version\)", r"\(Mono Version\)",
-                r"\(Stereo Version\)", r"\(Original Version\)", r"\(Radio\)"
+                r"\s*-\s*\d{4}\s*Remastered.*", r"\s*-\s*Remastered.*",
+                r"\s*-\s*\d{4}\s*Remaster.*", r"\s*-\s*Remaster.*",
+                r"\(Remastered\)", r"\[Remastered\]",
+                r"\(Remaster\)", r"\[Remaster\]",
+                r"\s+-\s*Live.*", r"\(Live\)", r"\[Live\]",
+                r"\s*-\s*Edit.*", r"\(Edit\)",
+                r"\s*-\s*Single.*",  r"\(Single Version\)",
+                r"\s*-\s*Mono.*", r"\(Mono Version\)",
+                r"\s*-\s*Stereo.*", r"\(Stereo Version\)",
+                r"\s*-\s*Original.*", r"\(Original Version\)", r"\(Original\)",
+                r"\s*-\s*Radio.*", r"\(Radio Version\)", r"\(Radio\)"
             ]
-            
+
             cleaned_track_name = track_name_raw
-            for pattern in terms_to_remove: 
+            for pattern in terms_to_remove:
                 cleaned_track_name = re.sub(pattern, "", cleaned_track_name, flags=re.IGNORECASE).strip()
-            
+
             original_artist_names = [artist["name"].lower() for artist in current_track["item"]["artists"]]
-            
+
             results = sp.search(q=f"track:{cleaned_track_name} artist:{artists_string}", type="track", limit=50)
             for result in results['tracks']['items']:
                 try:
@@ -337,7 +345,7 @@ def home():
                             if result_year < original_release_year:
                                 original_release_year = result_year
                                 original_album_name = result['album']['name']
-                except (KeyError, ValueError): 
+                except (KeyError, ValueError):
                     continue
 
             initial_year_html = ""
@@ -347,7 +355,7 @@ def home():
                 prominent_year_html = f'<p class="prominent-year">{original_release_year}</p>'
                 initial_year_html = f'<p><strong>Veröffentlichungsjahr:</strong> {initial_release_year}</p>'
                 original_info_html = f"""<div class="info-box"><h3>Originalversion</h3><p><strong>Original-Titel für Suche:</strong> {cleaned_track_name}</p><p><strong>Original-Album:</strong> {original_album_name}</p></div>"""
-            
+
             info_section_html = f"""
             <div class="info-section">
                 <hr class="info-divider">
@@ -359,7 +367,7 @@ def home():
                 {prominent_year_html}
             </div>
             """
-        
+
         temp_palettes = PALETTES.copy()
         if theme_name == 'album':
             temp_palettes['album'] = colors
@@ -367,7 +375,7 @@ def home():
         options_html = ""
         album_theme_active_class = "album-theme-active" if theme_name == 'album' else ""
         main_dot_style = f"background-color: {colors['highlight_color']};" if theme_name != 'album' else ""
-        
+
         for key, palette in temp_palettes.items():
             album_dot_class = "album-theme-active" if key == 'album' else ""
             dot_style = f'background-color: {palette["highlight_color"]};' if key != 'album' else ''
@@ -381,7 +389,7 @@ def home():
             </div>
         </div>
         """
-        
+
         html_content = f"""
         <!DOCTYPE html>
         <html lang="de">
@@ -415,6 +423,7 @@ def home():
             .info-box strong {{ color: #FFFFFF; }}
             .info-box h3 {{ color: #FFFFFF; margin-top: 1.5rem; margin-bottom: 0.5rem;}}
             .info-divider {{ margin: 2rem 0; border: 0; border-top: 1px solid #333; }}
+            .button-container {{ display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap; }}
             .button {{ padding: 12px 24px; background-color: {colors['highlight_color']}; color: {colors['button_text_color']}; text-decoration: none; border-radius: 50px; font-weight: bold; margin-top: 20px; display: inline-block; transition: background-color 0.3s, transform 0.3s ease; }}
             .button:hover {{ background-color: {colors['button_hover_color']}; transform: scale({button_hover_scale}); }}
             .prominent-year {{ font-size: clamp(3rem, 12vw, 4rem); font-weight: bold; color: {colors['highlight_color']}; margin: 1rem 0; }}
@@ -428,23 +437,26 @@ def home():
             .progress-interactive-area:hover #progressFill {{ stroke: {colors['button_hover_color']}; }}
             .player-mode-toggle {{ margin-top: 30px; margin-bottom: 15px; display: flex; flex-direction: column; align-items: center; gap: 10px; }}
             .toggle-label {{ font-size: 0.9rem; color: #B3B3B3; }}
+            .controls-cluster {{ display: flex; align-items: center; justify-content: center; gap: 18px; }}
             .switch {{ position: relative; display: inline-block; width: 50px; height: 28px; }}
             .switch input {{ opacity: 0; width: 0; height: 0; }}
             .slider {{ position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #444; transition: .4s; border-radius: 28px; }}
             .slider:before {{ position: absolute; content: ""; height: 22px; width: 22px; left: 3px; bottom: 3px; background-color: #1a1a1a; transition: .4s; border-radius: 50%; }}
             input:checked + .slider {{ background-color: {colors['highlight_color']}; }}
             input:checked + .slider:before {{ transform: translateX(22px); }}
-            .theme-picker {{ position: relative; margin-top: 25px; margin-bottom: 20px; display: flex; justify-content: center; }}
+            .random-song-button {{ display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; background-color: #333; border-radius: 50%; transition: background-color 0.3s ease; }}
+            .random-song-button svg {{ width: 18px; height: 18px; stroke: #B3B3B3; transition: stroke 0.3s ease; }}
+            .random-song-button:hover {{ background-color: {colors['highlight_color']}; }}
+            .random-song-button:hover svg {{ stroke: {colors['button_text_color']}; }}
+            .theme-picker {{ position: relative; display: flex; }}
             .theme-options-container {{ position: absolute; bottom: 130%; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; padding: 10px; background-color: #282828; border-radius: 50px; box-shadow: 0 4px 10px rgba(0,0,0,0.4); opacity: 0; visibility: hidden; transform: translate(-50%, 10px); transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s; }}
             .theme-options-container.active {{ opacity: 1; visibility: visible; transform: translate(-50%, 0); }}
             .theme-dot {{ width: 24px; height: 24px; border-radius: 50%; border: 2px solid #555; transition: transform 0.2s, background 0.3s; display: block; cursor: pointer; }}
             .theme-dot:hover {{ transform: scale(1.2); }}
             .main-dot {{ width: 30px; height: 30px; border-color: #888; }}
-            
-            .album-theme-active {{ 
+
+            .album-theme-active {{
                 background: linear-gradient(135deg,rgba(246, 255, 0, 1) 10%, rgba(255, 199, 0, 1) 18%, rgba(255, 117, 0, 1) 24%, rgba(255, 0, 0, 1) 35%, rgba(218, 0, 255, 1) 47%, rgba(117, 82, 255, 1) 60%, rgba(0, 178, 255, 1) 71%, rgba(0, 255, 133, 1) 83%, rgba(246, 255, 0, 1) 100%);
-
-
             }}
 
         </style>
@@ -458,12 +470,32 @@ def home():
             </div>
             <div class="progress-svg-container"><div class="progress-interactive-area"><svg viewBox="0 0 300 14"><path id="progressTrack" d=""></path><path id="progressFill" d=""></path></svg></div></div>
             <h1>{display_title}</h1><h2>{display_artist}</h2>{year_question_html}{info_section_html}
-            <a href="{button_link}" class="button">{button_text}</a>
-            <div class="player-mode-toggle"><label for="playerMode" class="toggle-label">Player-Modus</label><label class="switch"><input type="checkbox" id="playerMode" name="playerMode" {player_mode_checked}><span class="slider"></span></label></div>
-            {theme_selector_html}
+            <div class="button-container">
+                <a href="{button_link}" class="button">{button_text}</a>
+            </div>
+            <div class="player-mode-toggle">
+                <label for="playerMode" class="toggle-label">Player-Modus</label>
+                <div class="controls-cluster">
+                    {theme_selector_html}
+                    <label class="switch">
+                        <input type="checkbox" id="playerMode" name="playerMode" {player_mode_checked}>
+                        <span class="slider"></span>
+                    </label>
+                    <a href="/play_random" class="random-song-button" title="Zufälliger Song aus Playlist">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <circle cx="8.5" cy="8.5" r="0.5" fill="currentColor"></circle>
+                            <circle cx="15.5" cy="15.5" r="0.5" fill="currentColor"></circle>
+                            <circle cx="15.5" cy="8.5" r="0.5" fill="currentColor"></circle>
+                            <circle cx="8.5" cy="15.5" r="0.5" fill="currentColor"></circle>
+                            <circle cx="12" cy="12" r="0.5" fill="currentColor"></circle>
+                        </svg>
+                    </a>
+                </div>
+            </div>
             <a href="/logout" style="font-size: 0.8rem; color: #888; margin-top: 10px; display:inline-block;">Logout</a>
         </div>
-        
+
         <script>
             document.addEventListener('DOMContentLoaded', function() {{
                 const progressTrack = document.getElementById('progressTrack'); const progressFill = document.getElementById('progressFill'); const interactiveArea = document.querySelector('.progress-interactive-area'); const svgWidth = 300; const svgHeight = 14; const midHeight = svgHeight / 2; const amplitude = 6; const frequency = 0.05; const segments = 150; const waveSpeed = {wave_animation_speed};
@@ -485,7 +517,7 @@ def home():
                 const themeOptions = document.getElementById('theme-options');
                 if (themePickerToggle && themeOptions) {{
                     themePickerToggle.addEventListener('click', function(event) {{
-                        event.stopPropagation(); 
+                        event.stopPropagation();
                         themeOptions.classList.toggle('active');
                     }});
                     document.addEventListener('click', function() {{
@@ -499,7 +531,7 @@ def home():
         </body>
         </html>
         """
-        
+
         return render_template_string(html_content)
 
     except Exception as e:
@@ -589,6 +621,33 @@ def previous_track():
         time.sleep(0.5)
     except Exception:
         pass
+    return redirect(url_for('home'))
+
+# NEUE ROUTE FÜR ZUFÄLLIGEN SONG AUS PLAYLIST
+@app.route("/play_random")
+def play_random():
+    sp = get_spotify_client()
+    if not sp:
+        return redirect(url_for('home'))
+
+    playlist_uri = "spotify:playlist:76urfTElnBTZh1HXxDckec"
+
+    try:
+        # 1. Shuffle-Modus aktivieren
+        sp.shuffle(True)
+        # 2. Wiedergabe der Playlist starten (Spotify wählt durch Shuffle einen zufälligen Startpunkt)
+        sp.start_playback(context_uri=playlist_uri)
+        # Kurze Pause, damit der neue Song geladen werden kann, bevor die Seite neu lädt
+        time.sleep(0.7)
+    except spotipy.exceptions.SpotifyException as e:
+        # Fehlerbehandlung, falls z.B. kein aktives Gerät gefunden wird
+        print(f"Spotify API Fehler: {e}")
+        # Optional: Eine Fehlermeldung an den User weiterleiten
+        pass
+    except Exception as e:
+        print(f"Ein unerwarteter Fehler ist aufgetreten: {e}")
+        pass
+
     return redirect(url_for('home'))
 
 @app.route("/set-theme/<theme_name>")
