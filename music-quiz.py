@@ -1,6 +1,6 @@
 # --------------------
-# music-quiz11.1
-# Lean Pillow Farbanalyse des Albumcovers.
+# music-quiz11.2
+# Webbrowser icon.png & icon.svg
 # --------------------
 
 
@@ -390,6 +390,10 @@ def home():
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+
+        <link rel="icon" href="{{{{ url_for('static', filename='icon.svg') }}}}" type="image/svg+xml">
+        <link rel="apple-touch-icon" href="{{{{ url_for('static', filename='icon.png') }}}}">
+
         <title>Song Quiz</title>
         <style>
             * {{ box-sizing: border-box; }}
@@ -438,7 +442,9 @@ def home():
             .main-dot {{ width: 30px; height: 30px; border-color: #888; }}
             
             .album-theme-active {{ 
-                background: linear-gradient(135deg,rgba(246, 255, 0, 1) 0%, rgba(255, 199, 0, 1) 15%, rgba(255, 117, 0, 1) 25%, rgba(255, 0, 0, 1) 33%, rgba(218, 0, 255, 1) 47%, rgba(117, 82, 255, 1) 60%, rgba(0, 178, 255, 1) 70%, rgba(0, 255, 133, 1) 80%, rgba(246, 255, 0, 1) 100%);
+                background: linear-gradient(135deg,rgba(246, 255, 0, 1) 10%, rgba(255, 199, 0, 1) 18%, rgba(255, 117, 0, 1) 24%, rgba(255, 0, 0, 1) 35%, rgba(218, 0, 255, 1) 47%, rgba(117, 82, 255, 1) 60%, rgba(0, 178, 255, 1) 71%, rgba(0, 255, 133, 1) 83%, rgba(246, 255, 0, 1) 100%);
+
+
             }}
 
         </style>
