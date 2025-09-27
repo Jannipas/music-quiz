@@ -1,6 +1,6 @@
 # --------------------
-# music-quiz12.0
-# Button for playing a random song from (my) playlist + Restructured controls layout
+# music-quiz12.1
+# Different analyze_album_art Function
 # --------------------
 
 
@@ -120,12 +120,16 @@ def get_text_color_for_bg(hex_color):
 
 def analyze_album_art(image_url):
     """
-    Analysiert ein Album-Cover mit einem schlanken, performanten Algorithmus,
-    der Pillow direkt nutzt.
+    Analysiert ein Album-Cover mit einer mehrstufigen Logik, 
+    um eine ästhetisch ansprechende Akzentfarbe zu finden.
     """
-    MIN_SATURATION = 0.25
+    # 1. Strengere Filter definieren
+    MIN_SATURATION = 0.25  # Anforderung für eine "ideale" Akzentfarbe
     MIN_VALUE = 0.5
 
+    MIN_SAT_FALLBACK = 0.2
+
+    
     try:
         response = requests.get(image_url, stream=True)
         response.raise_for_status()
@@ -135,22 +139,27 @@ def analyze_album_art(image_url):
             img.thumbnail((64, 64))
 
             # 2. Schnelle Extraktion einer kleinen Farbpalette (8 Farben)
-            paletted_img = img.convert("RGB").quantize(colors=16)
+            paletted_img = img.convert("RGB").quantize(colors=64)
             palette = paletted_img.getpalette()
 
             # Die Palette ist eine flache Liste [R1,G1,B1, R2,G2,B2, ...], wir gruppieren sie
             raw_colors_rgb = [tuple(palette[i:i+3]) for i in range(0, len(palette), 3)]
 
         candidate_colors = []
+
         for r, g, b in raw_colors_rgb:
+
             h, s, v = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)
 
+            # "Ideale" Kandidaten mit strengen Kriterien sammeln
             if s >= MIN_SATURATION and v >= MIN_VALUE:
-                candidate_colors.append({'rgb': (r, g, b), 'saturation': s, 'value': v})
+                score = (s * 1) * (v * 1)
+                candidate_colors.append({'rgb': (r, g, b), 'score': score})
 
         highlight_color = None
+
         if candidate_colors:
-            best_candidate = sorted(candidate_colors, key=lambda x: x['saturation'] * x['value'], reverse=True)[0]
+            best_candidate = sorted(candidate_colors, key=lambda x: x['score'], reverse=True)[0]
             r, g, b = best_candidate['rgb']
             highlight_color = f"#{r:02x}{g:02x}{b:02x}"
         elif raw_colors_rgb:
