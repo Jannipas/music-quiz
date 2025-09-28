@@ -1,7 +1,7 @@
 # --------------------
-# music-quiz13.0
-# Improved Login and Error Page
-# Get available device algorithm
+# music-quiz13.1
+# Improved Error Page: Get available device algorithm
+# Improved Login Page: Logo integration (cut left-align)
 # Minor UI size changes
 # --------------------
 
@@ -97,6 +97,7 @@ arrow_hover_scale = 1.2
 button_hover_scale = 1.07
 progress_bar_hover_increase_px = 5
 icon_svg = 'icon2.svg'
+icon_svg_sq = 'icon2-sq.svg'
 icon_png = 'icon2.png'
 # --- ENDE DER EINSTELLUNGEN ---
 
@@ -271,7 +272,6 @@ def home():
                     justify-content: flex-start; 
                     min-height: 100vh; 
                     margin: 0; 
-                    text-align: center; 
                     padding-top: 5vh; 
                     padding-bottom: 5vh;
                 }}
@@ -281,18 +281,32 @@ def home():
                     padding: 2rem; 
                     border-radius: 12px; 
                     background-color: #1a1a1a; 
-                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5); 
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+                    /* --- NEU: Container ist linksbündig --- */
+                    text-align: left;
+                }}
+                .login-icon {{
+                    /* Das SVG wird so hoch wie von dir vorgegeben */
+                    height: 150px;
+                    width: auto;
+                    /* Negativer unterer Rand, um den Text näher heranzuholen */
+                    margin-bottom: -1rem;
+                    /* Korrigiert die Positionierung für die linksbündige Ausrichtung */
+                    margin-left: -2rem; /* Zieht das SVG an den Rand des Containers */
                 }}
                 h1 {{ 
                     color: #FFFFFF; 
-                    font-size: clamp(1.5rem, 6vw, 2.5rem); 
-                    margin-bottom: 1.5rem; 
+                    font-size: clamp(2rem, 6vw, 2.8rem); /* Etwas grösser für mehr Wirkung */
+                    margin-bottom: 1rem; 
                 }}
                 h2 {{ 
                     color: #B3B3B3; 
                     font-size: clamp(1rem, 3vw, 1.2rem); 
                     margin: 0.5rem 0 2.5rem;
                     font-weight: 400;
+                }}
+                .center-wrapper {{
+                    text-align: center;
                 }}
                 .button {{ 
                     padding: 12px 24px; 
@@ -306,15 +320,18 @@ def home():
                 }}
                 .button:hover {{ 
                     background-color: {colors['button_hover_color']}; 
-                    transform: scale(1.05); 
+                    transform: scale({button_hover_scale}); 
                 }}
             </style>
         </head>
         <body>
             <div class="container">
-                <h1>Willkommen beim Song Quiz</h1>
-                <h2>Bitte melde dich mit deinem Konto an, um fortzufahren.</h2>
-                <a href="/login" class="button">Mit grünem Musikstreamingdienst anmelden</a>
+                <img class="login-icon" src="{{{{ url_for('static', filename='icon2-sq-extended-cut.svg') }}}}" alt="Song Quiz Logo">
+                <div class="center-wrapper">
+                    <h1>Willkommen beim<br>Song Quiz</h1>
+                    <h2>Bitte melde dich mit deinem Spotify Konto an,<br>um fortzufahren.</h2>
+                    <a href="/login" class="button">Anmelden</a>
+                </div>
             </div>
         </body>
         </html>
@@ -656,7 +673,7 @@ def home():
                 </div>
                 <h1>Fehler oder kein Song aktiv</h1>
                 <h2>Bitte starte die Wiedergabe auf einem deiner Geräte. Du kannst dafür auch auf den Play-Button oben klicken.</h2>
-                <a href="/" class="button">Aktualisieren / Neu anmelden</a>
+                <a href="/" class="button">Aktualisieren</a>
                 <p class="error-details"><small>Details: {e}</small></p>
                 <a href="/logout" style="font-size: 0.8rem; color: #888; margin-top: 20px; display:inline-block;">Logout</a>
             </div>
