@@ -287,10 +287,12 @@ def home():
                 }}
                 .login-icon {{
                     /* Das SVG wird so hoch wie von dir vorgegeben */
-                    height: 150px;
-                    width: auto;
+                    width: 100%;
+                    height: auto;
+                    max-height: 150px; /* Begrenzt die Höhe auf großen Bildschirmen */
                     /* Negativer unterer Rand, um den Text näher heranzuholen */
                     margin-bottom: -1rem;
+                    margin-top: -1rem;
                     /* Korrigiert die Positionierung für die linksbündige Ausrichtung */
                     margin-left: -2rem; /* Zieht das SVG an den Rand des Containers */
                 }}
