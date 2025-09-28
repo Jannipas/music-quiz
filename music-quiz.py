@@ -1,6 +1,8 @@
 # --------------------
-# music-quiz12.1
-# Different analyze_album_art Function
+# music-quiz13.0
+# Improved Login and Error Page
+# Get available device algorithm
+# Minor UI size changes
 # --------------------
 
 
@@ -35,7 +37,7 @@ class FlaskSessionCacheHandler(spotipy.cache_handler.CacheHandler):
     def save_token_to_cache(self, token_info):
         self.session['spotify_token_info'] = token_info
 
-scope = "user-read-currently-playing user-modify-playback-state"
+scope = "user-read-currently-playing user-modify-playback-state user-read-playback-state"
 
 # --- FARBPALETTEN ---
 PALETTES = {
@@ -88,12 +90,14 @@ PALETTES = {
 wave_animation_speed = 60
 polling_interval_seconds = 3
 arrow_size = "60px"
-arrow_thickness = 4
-progress_bar_thickness = 10
-album_art_hover_scale = 1.03
-arrow_hover_scale = 1.15
-button_hover_scale = 1.05
-progress_bar_hover_increase_px = 3
+arrow_thickness = 4.5
+progress_bar_thickness = 11
+album_art_hover_scale = 1.05
+arrow_hover_scale = 1.2
+button_hover_scale = 1.07
+progress_bar_hover_increase_px = 5
+icon_svg = 'icon2.svg'
+icon_png = 'icon2.png'
 # --- ENDE DER EINSTELLUNGEN ---
 
 TOKEN_INFO_KEY = 'spotify_token_info'
@@ -246,17 +250,75 @@ def home():
 
     if not sp:
         login_html = f"""
-        <!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Login</title>
-        <style>
-            body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #121212; color: #B3B3B3; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; margin: 0; text-align: center; padding-top: 5vh; padding-bottom: 5vh; }}
-            .container {{ width: calc(100% - 2rem); max-width: 600px; padding: 3rem; border-radius: 12px; background-color: #1a1a1a; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5); }}
-            h1 {{ color: #FFFFFF; font-size: clamp(1.5rem, 6vw, 2.5rem); margin-bottom: 2rem; }}
-            .button {{ padding: 12px 24px; background-color: {colors['highlight_color']}; color: {colors['button_text_color']}; text-decoration: none; border-radius: 50px; font-weight: bold; transition: background-color 0.3s, transform 0.3s; display: inline-block; }}
-            .button:hover {{ background-color: {colors['button_hover_color']}; transform: scale(1.05); }}
-        </style></head><body><div class="container">
-            <h1>Song Quiz</h1>
-            <a href="/login" class="button">Mit grünem Musikstreamingdienst anmelden</a>
-        </div></body></html>"""
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+            <title>Login - Song Quiz</title>
+            <style>
+                * {{ box-sizing: border-box; }}
+                body {{ 
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+                    background-color: #121212; 
+                    color: #B3B3B3; 
+                    display: flex; 
+                    flex-direction: column; 
+                    align-items: center; 
+                    justify-content: flex-start; 
+                    min-height: 100vh; 
+                    margin: 0; 
+                    text-align: center; 
+                    padding-top: 5vh; 
+                    padding-bottom: 5vh;
+                }}
+                .container {{ 
+                    width: calc(100% - 2rem); 
+                    max-width: 600px; 
+                    padding: 2rem; 
+                    border-radius: 12px; 
+                    background-color: #1a1a1a; 
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5); 
+                }}
+                h1 {{ 
+                    color: #FFFFFF; 
+                    font-size: clamp(1.5rem, 6vw, 2.5rem); 
+                    margin-bottom: 1.5rem; 
+                }}
+                h2 {{ 
+                    color: #B3B3B3; 
+                    font-size: clamp(1rem, 3vw, 1.2rem); 
+                    margin: 0.5rem 0 2.5rem;
+                    font-weight: 400;
+                }}
+                .button {{ 
+                    padding: 12px 24px; 
+                    background-color: {colors['highlight_color']}; 
+                    color: {colors['button_text_color']}; 
+                    text-decoration: none; 
+                    border-radius: 50px; 
+                    font-weight: bold; 
+                    transition: background-color 0.3s, transform 0.3s; 
+                    display: inline-block; 
+                }}
+                .button:hover {{ 
+                    background-color: {colors['button_hover_color']}; 
+                    transform: scale(1.05); 
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Willkommen beim Song Quiz</h1>
+                <h2>Bitte melde dich mit deinem Konto an, um fortzufahren.</h2>
+                <a href="/login" class="button">Mit grünem Musikstreamingdienst anmelden</a>
+            </div>
+        </body>
+        </html>
+        """
         return render_template_string(login_html)
 
     try:
@@ -408,8 +470,8 @@ def home():
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
 
-        <link rel="icon" href="{{{{ url_for('static', filename='icon.svg') }}}}" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="{{{{ url_for('static', filename='icon.png') }}}}">
+        <link rel="icon" href="{{{{ url_for('static', filename='{icon_svg}') }}}}" type="image/svg+xml">
+        <link rel="apple-touch-icon" href="{{{{ url_for('static', filename='{icon_png}') }}}}">
 
         <title>Song Quiz</title>
         <style>
@@ -546,7 +608,61 @@ def home():
     except Exception as e:
         theme_name = session.get('theme', 'default')
         colors = PALETTES.get(theme_name, PALETTES['default'])
-        error_html = f"""<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Fehler</title><style>body{{font-family:-apple-system,sans-serif;background-color:#121212;color:#b3b3b3;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center;padding:1rem}}.container{{width:calc(100% - 2rem);max-width:600px;padding:2.5rem;border-radius:12px;background-color:#1a1a1a;box-shadow:0 4px 15px rgba(0,0,0,0.5)}}h1{{color:#fff;margin-bottom:1rem}}p{{margin:1rem 0;line-height:1.6}}.button{{padding:12px 24px;background-color:{colors['highlight_color']};color: {colors['button_text_color']};text-decoration:none;border-radius:50px;font-weight:700;margin-top:20px;display:inline-block;transition:background-color .3s,transform .3s ease}}.button:hover{{background-color:{colors['button_hover_color']};transform:scale(1.05)}}.error-details{{margin-top:2rem;font-size:.8rem;color:#666}}</style></head><body><div class="container"><h1>Fehler oder kein Song aktiv</h1><p>Möglicherweise wird gerade ein lokaler Song abgespielt, oder es ist kein Titel aktiv. Bitte stelle sicher, dass ein Song wiedergegeben wird.</p><a href="/" class="button">Aktualisieren / Neu anmelden</a><p class="error-details"><small>Details: {e}</small></p></div></body></html>"""
+        
+        # NEUE, VERBESSERTE FEHLERSEITE
+        image_html_error = f"""
+        <div class="placeholder-quiz">
+            <svg class="quiz-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polygon points="10 8 16 12 10 16 10 8"></polygon>
+            </svg>
+        </div>
+        """
+        
+        error_html = f"""
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+            <title>Fehler - Song Quiz</title>
+            <style>
+                * {{ box-sizing: border-box; }}
+                body {{ font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #121212; color: #B3B3B3; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; margin: 0; text-align: center; padding-top: 5vh; padding-bottom: 5vh; }}
+                .container {{ width: calc(100% - 2rem); max-width: 600px; padding: 2rem; border-radius: 12px; background-color: #1a1a1a; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5); }}
+                .album-art-container {{ display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; max-width: 450px; margin: 0 auto 1.5rem; }}
+                .album-art-link {{ flex: 1 1 0; min-width: 0; display: flex; justify-content: center; transition: transform 0.3s ease; }}
+                .album-art-link:hover {{ transform: scale({album_art_hover_scale}); }}
+                .placeholder-quiz {{ width: 100%; max-width: 300px; height: auto; aspect-ratio: 1 / 1; border-radius: 8px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); display: flex; align-items: center; justify-content: center; background-color: #282828; }}
+                .quiz-icon {{ width: 50%; height: auto; stroke: {colors['highlight_color']}; transition: stroke 0.2s ease-in-out; }}
+                 .album-art-link:hover .quiz-icon {{ stroke: {colors['button_hover_color']}; }}
+                .control-arrow svg {{ width: {arrow_size}; height: {arrow_size}; stroke: {colors['highlight_color']}; stroke-width: {arrow_thickness}; transition: transform 0.3s ease, stroke 0.3s ease; }}
+                .control-arrow:hover svg {{ stroke: {colors['button_hover_color']}; transform: scale({arrow_hover_scale}); }}
+                h1 {{ color: #FFFFFF; font-size: clamp(1.5rem, 6vw, 2.5rem); margin-bottom: 0.5rem; }}
+                h2 {{ color: #B3B3B3; font-size: clamp(1rem, 3vw, 1.2rem); margin: 0.5rem 0 1.5rem; font-weight: 400; line-height: 1.6; }}
+                .button {{ padding: 12px 24px; background-color: {colors['highlight_color']}; color: {colors['button_text_color']}; text-decoration: none; border-radius: 50px; font-weight: bold; margin-top: 20px; display: inline-block; transition: background-color 0.3s, transform 0.3s ease; }}
+                .button:hover {{ background-color: {colors['button_hover_color']}; transform: scale({button_hover_scale}); }}
+                .error-details {{ margin-top: 2rem; font-size: 0.8rem; color: #666; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="album-art-container">
+                    <a href="/previous" class="control-arrow"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg></a>
+                    <a href="/play_pause" class="album-art-link">{image_html_error}</a>
+                    <a href="/next" class="control-arrow"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></a>
+                </div>
+                <h1>Fehler oder kein Song aktiv</h1>
+                <h2>Bitte starte die Wiedergabe auf einem deiner Geräte. Du kannst dafür auch auf den Play-Button oben klicken.</h2>
+                <a href="/" class="button">Aktualisieren / Neu anmelden</a>
+                <p class="error-details"><small>Details: {e}</small></p>
+                <a href="/logout" style="font-size: 0.8rem; color: #888; margin-top: 20px; display:inline-block;">Logout</a>
+            </div>
+        </body>
+        </html>
+        """
         return render_template_string(error_html)
 
 
@@ -596,16 +712,51 @@ def solve():
 @app.route("/play_pause")
 def play_pause():
     sp = get_spotify_client()
-    if not sp: return redirect(url_for('home'))
+    if not sp:
+        return redirect(url_for('home'))
     try:
         current_track = sp.currently_playing()
-        if current_track and current_track['is_playing']:
+        if current_track and current_track.get('is_playing'):
             sp.pause_playback()
+            print("Playback paused.")
         else:
             sp.start_playback()
-        time.sleep(0.5)
-    except Exception:
-        pass
+            print("Playback started.")
+    except spotipy.exceptions.SpotifyException as e:
+        if "No active device found" in str(e) or "Player command failed" in str(e):
+            print("No active device found. Searching for an available one.")
+            try:
+                # KORREKTUR: Wir holen die Liste mit .get('devices', []) sicher aus dem Container-Objekt.
+                device_list = sp.devices().get('devices', [])
+                if device_list:
+                    # DEINE PRIORITÄTENLISTE
+                    priorities = {'Smartphone': 1, 'Computer': 2, 'Speaker': 3}
+
+                    # Wir sortieren nun die device_list, was eine echte Liste von Geräten ist.
+                    sorted_devices = sorted(device_list, key=lambda d: priorities.get(d['type'], 99))
+                    
+                    # --- FÜGE DIESEN DEBUG-BLOCK EIN ---
+                    print("--- Sortierte Geräteliste (Priorität: Smartphone > Computer > Speaker) ---")
+                    for i, device in enumerate(sorted_devices):
+                        print(f"  {i+1}. Name: {device.get('name', 'N/A')}, Typ: {device.get('type', 'N/A')}")
+                    print("--------------------------------------------------------------------")
+                    # --- ENDE DEBUG-BLOCK ---
+
+
+                    best_device = sorted_devices[0]
+                    best_device_id = best_device['id']
+                    print(f"No active device. Activating best-choice device: {best_device['name']} ({best_device['type']})")
+                    sp.start_playback(device_id=best_device_id)
+                else:
+                    print("No available devices found for user.")
+            except Exception as device_error:
+                print(f"Error while trying to activate a device: {device_error}")
+        else:
+            print(f"An unexpected Spotify API error occurred: {e}")
+    except Exception as e:
+        print(f"A general error occurred in play_pause: {e}")
+    
+    time.sleep(0.5)
     return redirect(url_for('home'))
 
 @app.route("/next")
