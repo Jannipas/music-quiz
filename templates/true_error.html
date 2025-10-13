@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        :root {
+            --highlight-color: {{ colors["highlight_color"] }};
+            --button-hover-color: {{ colors["button_hover_color"] }};
+            --button-text-color: {{ colors["button_text_color"] }};
+            --button-hover-scale: {{ button_hover_scale }};
+        }
+    </style>
+    <title>Fehler - Song Quiz</title>
+</head>
+<body>
+    <div class="container">
+        <h1>Ein Fehler ist aufgetreten</h1>
+        <h2>Es gab ein unerwartetes Problem.<br>Bitte versuche, die Seite neu zu laden.</h2>
+        <a href="/" class="button">Aktualisieren</a>
+        <p class="error-details">
+            <small>Details: {{ e }}</small>
+        </p>
+        <a href="/logout" style="font-size: 0.8rem; color: #888; margin-top: 20px; display:inline-block;">Logout</a>
+    </div>
+</body>
+</html>

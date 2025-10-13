@@ -1,0 +1,32 @@
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+
+            <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+            <style>
+                :root {
+                --highlight-color: {{ colors['highlight_color'] }};
+                --button-hover-color: {{ colors['button_hover_color'] }};
+                --button-text-color: {{ colors['button_text_color'] }};
+                --button-hover-scale: {{ button_hover_scale }};
+                }
+            </style>
+
+            <title>Login - Song Quiz</title>
+        </head>
+        <body>
+            <div class="container">
+                <img class="login-icon" src="{{ url_for('static', filename='icon2-sq-extended-cut.svg') }}" alt="Song Quiz Logo">
+                <div class="center-wrapper">
+                    <h1>Willkommen beim<br>Song Quiz</h1>
+                    <h2>Bitte melde dich mit deinem Spotify Konto an,<br>um fortzufahren.</h2>
+                    <a href="/login" class="button">Anmelden</a>
+                </div>
+            </div>
+        </body>
+        </html>

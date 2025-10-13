@@ -1,0 +1,21 @@
+<svg id="visual" viewBox="-1142 0 1636 512" width="1636" height="512" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">
+    <rect x="-1142" y="0" width="1636" height="512" fill="#1a1a1a"></rect>
+
+    <path 
+        d="M-1024 330 C -896 230, -768 430, -512 330 S -256 300, 0 330" 
+        fill="none" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        stroke="#C06EF3" 
+        stroke-width="60">
+    </path>
+
+    <path 
+        d="M0 330L10.7 331.2C21.3 332.3 42.7 334.7 64 333.7C85.3 332.7 106.7 328.3 128 302C149.3 275.7 170.7 227.3 192 241.7C213.3 256 234.7 333 256 307.3C277.3 281.7 298.7 153.3 320 159C341.3 164.7 362.7 304.3 372 370" 
+        fill="none" 
+        stroke-linecap="round" 
+        stroke-linejoin="miter" 
+        stroke="#C06EF3" 
+        stroke-width="60">
+    </path>
+</svg>

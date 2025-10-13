@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+
+    <link rel="icon" href="{{ url_for('static', filename=icon_svg) }}" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename=icon_png) }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        :root {
+            --highlight-color: {{ colors["highlight_color"] }};
+            --button-hover-color: {{ colors["button_hover_color"] }};
+            --button-text-color: {{ colors["button_text_color"] }};
+            
+            --album-art-hover-scale: {{ album_art_hover_scale }};
+            --arrow-hover-scale: {{ arrow_hover_scale }};
+            --button-hover-scale: {{ button_hover_scale }};
+            --arrow-size: {{ arrow_size }};
+            --arrow-thickness: {{ arrow_thickness }};
+            --progress-bar-thickness: {{ progress_bar_thickness ~ 'px' }};
+            --progress-bar-hover-increase: {{ (progress_bar_thickness + progress_bar_hover_increase_px) ~ 'px' }};
+        }
+    </style>
+
+    <title>Song Quiz</title>
+
+</head>
+<body>
+    <div class="container">
+        <div class="album-art-container">
+            <a href="/previous" class="control-arrow"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg></a>
+            <a href="/play_pause" class="album-art-link">{{ image_html | safe }}</a>
+            <a href="/next" class="control-arrow"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></a>
+        </div>
+        <div class="progress-svg-container"><div class="progress-interactive-area"><svg viewBox="0 0 300 14"><path id="progressTrack" d=""></path><path id="progressFill" d=""></path></svg></div></div>
+        <h1>{{ display_title }}</h1><h2 class="artist-name">{{ display_artist }}</h2>{{ year_question_html | safe }}{{ info_section_html | safe }}
+        <div class="button-container">
+            <a href="{{ button_link }}" class="button">{{ button_text }}</a>
+        </div>
+        <div class="player-mode-toggle">
+            <label for="playerMode" class="toggle-label">Player-Modus</label>
+            <div class="controls-cluster">
+                {{ theme_selector_html | safe }}
+                <label class="switch">
+                    <input type="checkbox" id="playerMode" name="playerMode" {{ player_mode_checked }}>
+                    <span class="slider"></span>
+                </label>
+                <a href="/play_random" class="random-song-button" title="Zufälliger Song aus Playlist">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="0.5" fill="currentColor"></circle>
+                        <circle cx="15.5" cy="15.5" r="0.5" fill="currentColor"></circle>
+                        <circle cx="15.5" cy="8.5" r="0.5" fill="currentColor"></circle>
+                        <circle cx="8.5" cy="15.5" r="0.5" fill="currentColor"></circle>
+                        <circle cx="12" cy="12" r="0.5" fill="currentColor"></circle>
+                    </svg>
+                </a>
+            </div>
+        </div>
+        <a href="/logout" style="font-size: 0.8rem; color: #888; margin-top: 10px; display:inline-block;">Logout</a>
+    </div>
+
+    <script>
+        const songData = {
+            trackId: '{{ current_track_id }}',
+            progressMs: {{ progress_ms }},
+            durationMs: {{ duration_ms }},
+            isPlaying: {{ is_playing | tojson }},
+            waveSpeed: {{ wave_animation_speed }},
+            pollingInterval: {{ polling_interval_seconds * 1000 }}
+        };
+    </script>
+    
+    <script src="{{ url_for('static', filename='script_index.js') }}"></script>
+    
+</body>
+</html>

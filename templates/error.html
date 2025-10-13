@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        :root {
+            --highlight-color: {{ colors["highlight_color"] }};
+            --button-hover-color: {{ colors["button_hover_color"] }};
+            --button-text-color: {{ colors["button_text_color"] }};
+            --album-art-hover-scale: {{ album_art_hover_scale }};
+            --arrow-hover-scale: {{ arrow_hover_scale }};
+            --button-hover-scale: {{ button_hover_scale }};
+            --arrow-size: {{ arrow_size }};
+            --arrow-thickness: {{ arrow_thickness }};
+        }
+    </style>
+
+    <title>Fehler - Song Quiz</title>
+</head>
+<body>
+    <div class="container">
+        <div class="album-art-container">
+            <a href="/previous" class="control-arrow">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </a>
+            <a href="/play_pause" class="album-art-link">{{ image_html_error | safe }}</a>
+            <a href="/next" class="control-arrow">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </a>
+        </div>
+        <h1>Kein Song aktiv</h1>
+        <h2>Bitte starte die Wiedergabe auf einem deiner Geräte.<br>Du kannst dafür auch auf den Play-Button oben klicken.</h2>
+        <a href="/" class="button">Aktualisieren</a>
+        <p class="error-details">
+            <small>Details: {{ e }}</small>
+        </p>
+        <a href="/logout" style="font-size: 0.8rem; color: #888; margin-top: 20px; display:inline-block;">Logout</a>
+    </div>
+</body>
+</html>
