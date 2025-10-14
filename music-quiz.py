@@ -1,15 +1,14 @@
 # --------------------
-# music-quiz15.4
+# music-quiz15.5
 # 
-# Last Version: music-quiz15.3
-#   Refactoring: Release-Year-Algorithmus und Theme-Picker in eigene Funktionen ausgelagert
-#
-# New Changes:
+# Last Version: music-quiz15.4
 #   Funktion find_original_release_info() komplett überarbeitet
 #   Aggressives Title cleaning etwas geschwächt
 #
-# Next:
-#   Find Original Release Year Algorithmus von Version 13.1 überarebeiten
+# New Changes:
+#   find_original_release_info(): Einzelne Query Abfragen für jeden Artist anstatt eine Abfrage für alle Artist
+#   Grau etwas heller gemacht
+#   Rotes Theme hinzugefügt
 # --------------------
 
 import os
@@ -23,6 +22,7 @@ from flask import Flask, render_template, redirect, url_for, request, session, j
 from dotenv import load_dotenv
 from PIL import Image
 import requests
+import json
 
 load_dotenv()
 
@@ -49,9 +49,10 @@ PALETTES = {
     'default': {'name': 'Lavendel (Standard)',      'highlight_color': '#C06EF3', 'button_hover_color': '#9F47D6', 'button_text_color': '#FFFFFF'},
     'emerald_green': {'name': 'Smaragd Grün',       'highlight_color': '#1DB954', 'button_hover_color': '#1AA34A', 'button_text_color': '#FFFFFF'},
     'ocean_blue': {'name': 'Ozeanblau',             'highlight_color': '#2D8BBA', 'button_hover_color': '#246D92', 'button_text_color': '#FFFFFF'},
-    'butter_yellow': {'name': 'Buttergelb',         'highlight_color': '#f2d34c', 'button_hover_color': '#efc23b', 'button_text_color': '#1a1a1a'},
+    'butter_yellow': {'name': 'Buttergelb',         'highlight_color': '#f2d34c', 'button_hover_color': '#efc23b', 'button_text_color': '#1d1d1d'},
     'sunset_orange': {'name': 'Sonnenuntergang',    'highlight_color': '#F56E28', 'button_hover_color': '#C45820', 'button_text_color': '#FFFFFF'},
-    'white': {'name': 'Weiß',                       'highlight_color': "#FFFFFF", 'button_hover_color': "#E6E6E6", 'button_text_color': '#1a1a1a'}
+    'ruby_red': {'name': 'Rubinrot',                'highlight_color': '#FF0000', 'button_hover_color': '#CC0000', 'button_text_color': '#FFFFFF'},
+    'white': {'name': 'Weiß',                       'highlight_color': "#FFFFFF", 'button_hover_color': "#E6E6E6", 'button_text_color': '#1d1d1d'}
 }
 
 # --- STATISCHE EINSTELLUNGEN ---
@@ -98,7 +99,7 @@ def get_text_color_for_bg(hex_color):
         hex_color = hex_color.lstrip('#')
         r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
         luminance = (0.299 * r + 0.587 * g + 0.114 * b)
-        return '#1a1a1a' if luminance > 150 else '#FFFFFF'
+        return '#1d1d1d' if luminance > 150 else '#FFFFFF'
     except Exception:
         return '#FFFFFF'
 
@@ -159,7 +160,7 @@ def generate_theme_selector_html(theme_name, colors):
 def clean_title(title):
 
     terms_to_remove = [
-        r"'", r"\"",
+        r"'", r"’", r"`", r"\"", r",",
         r"\s*\(\s*.*?Remastered.*?\)", r"\s*\(\s*.*?Remaster.*?\)",
         r"\s*\(\s*.*?Live.*?\)", r"\s*\(\s*.*?Edit.*?\)", r"\s*\(\s*.*?Single.*?\)", r"\s*\(\s*.*?Mono.*?\)", r"\s*\(\s*.*?From.*?\)",
         r"\s*\(\s*.*?Stereo.*?\)", r"\s*\(\s*.*?Original.*?\)", r"\s*\(\s*.*?Radio.*?\)", r"\s*\(\s*.*?Mix.*?\)", r"\s*\(\s*.*?Version.*?\)",
@@ -178,8 +179,7 @@ def clean_title(title):
 # --- ORIGINAL-RELEASE-JAHR FINDEN ---
 def find_original_release_info(sp, item):
     track_name_raw = item["name"]
-    album_name = item["album"]["name"]
-    artists_string = ", ".join([artist["name"] for artist in item["artists"]])
+    # artists_string = ", ".join([artist["name"] for artist in item["artists"]])
     initial_release_year = int(item["album"]["release_date"].split('-')[0])
     
     cleaned_original_track_name = clean_title(track_name_raw)
@@ -188,23 +188,29 @@ def find_original_release_info(sp, item):
     candidate_list = []
 
     try:
-        search_query = f'track:"{cleaned_original_track_name}" artist:"{artists_string}"'
-        results = sp.search(q=search_query, type="track", limit=50)
         
-        for result in results['tracks']['items']:
+        artist_list = [artist["name"] for artist in item["artists"]]
+        all_search_items = []
+
+        for artist in artist_list:
+            search_query = f'track:"{cleaned_original_track_name}" artist:"{artist}"'
+            results = sp.search(q=search_query, type="track", limit=50)
+            all_search_items.extend(results['tracks']['items'])
+        
+        for result in all_search_items:
             try:
 
                 result_artist_names_lower = [artist["name"].lower() for artist in result["artists"]]
                 if not any(artist_name in result_artist_names_lower for artist_name in original_artist_names_lower):
                     continue
 
-                
+        
                 cleaned_result_track_name = clean_title(result['name'])
                 if cleaned_original_track_name.lower() == cleaned_result_track_name.lower():
                     candidate = {
                         'year': int(result['album']['release_date'].split('-')[0]),
                         'album_name': result['album']['name'],
-                        'album_type': result['album']['album_type']
+                       'album_type': result['album']['album_type']
                     }
                     
                     if candidate['album_type'] in ['album', 'single']:
@@ -215,7 +221,15 @@ def find_original_release_info(sp, item):
         
 
         if candidate_list:
+            # print("--- DEBUG-AUSGABE: Inhalt von candidate_list ---")
+            # print(json.dumps(candidate_list, indent=2))
+            # print("--------------------------------------------")
+
             best_match = min(candidate_list, key=lambda c: c['year'])
+            # print("--- DEBUG-AUSGABE: Inhalt von best_match ---")
+            # print(json.dumps(best_match, indent=2))
+            # print("--------------------------------------------")
+
             return {
                 'year': best_match['year'],
                 'album_name': best_match['album_name'],
@@ -226,6 +240,7 @@ def find_original_release_info(sp, item):
         print(f"Fehler bei der Spotify-Suche für das Originaljahr: {e}")
 
     # Notfall
+    print("No Candidates")
     return {
         'year': initial_release_year,
         'album_name': item["album"]["name"],
