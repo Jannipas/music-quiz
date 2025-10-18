@@ -160,16 +160,16 @@ def generate_theme_selector_html(theme_name, colors):
 def clean_title(title):
 
     terms_to_remove = [
-        r"'", r"’", r"`", r"\"", r",",
-        r"\s*\(\s*.*?Remastered.*?\)", r"\s*\(\s*.*?Remaster.*?\)",
-        r"\s*\(\s*.*?Live.*?\)", r"\s*\(\s*.*?Edit.*?\)", r"\s*\(\s*.*?Single.*?\)", r"\s*\(\s*.*?Mono.*?\)", r"\s*\(\s*.*?From.*?\)",
-        r"\s*\(\s*.*?Stereo.*?\)", r"\s*\(\s*.*?Original.*?\)", r"\s*\(\s*.*?Radio.*?\)", r"\s*\(\s*.*?Mix.*?\)", r"\s*\(\s*.*?Version.*?\)",
-        r"\s*\[\s*.*?Remastered.*?\]", r"\s*\[\s*.*?Remaster.*?\]",
-        r"\s*\[\s*.*?Live.*?\]", r"\s*\[\s*.*?Edit.*?\]", r"\s*\[\s*.*?Single.*?\]", r"\s*\[\s*.*?Mono.*?\]", r"\s*\[\s*.*?From.*?\]",
-        r"\s*\[\s*.*?Stereo.*?\]", r"\s*\[\s*.*?Original.*?\]", r"\s*\[\s*.*?Radio.*?\]", r"\s*\[\s*.*?Mix.*?\]", r"\s*\[\s*.*?Version.*?\]",
-        r"\s*-\s*.*?Remastered.*", r"\s*-\s*.*?Remaster.*",
-        r"\s+-\s*.*?Live.*", r"\s*-\s*.*?Edit.*", r"\s*-\s*.*?Single.*", r"\s*-\s*.*?Mono.*", r"\s*-\s*.*?From.*",
-        r"\s*-\s*.*?Stereo.*", r"\s*-\s*.*?Original.*", r"\s*-\s*.*?Radio.*", r"\s*-\s*.*?Mix.*", r"\s*-\s*.*?Version.*"
+        r"'", r"’", r"`", r"\"", r",", r"\s*-\s*\d{4}",
+        r"\s*\(.*?Remastered.*?\)", r"\s*\(.*?Remaster.*?\)",
+        r"\s*\(.*?Live.*?\)", r"\s*\(.*?Edit.*?\)", r"\s*\(.*?Single.*?\)", r"\s*\(.*?Mono.*?\)", r"\s*\(.*?From.*?\)",
+        r"\s*\(.*?Stereo.*?\)", r"\s*\(.*?Original.*?\)", r"\s*\(.*?Radio.*?\)", r"\s*\(.*?Mix.*?\)", r"\s*\(.*?Version.*?\)",
+        r"\s*\[.*?Remastered.*?\]", r"\s*\[.*?Remaster.*?\]",
+        r"\s*\[.*?Live.*?\]", r"\s*\[.*?Edit.*?\]", r"\s*\[.*?Single.*?\]", r"\s*\[.*?Mono.*?\]", r"\s*\[.*?From.*?\]",
+        r"\s*\[.*?Stereo.*?\]", r"\s*\[.*?Original.*?\]", r"\s*\[.*?Radio.*?\]", r"\s*\[.*?Mix.*?\]", r"\s*\[.*?Version.*?\]",
+        r"\s*-.*?Remastered.*", r"\s*-.*?Remaster.*",
+        r"\s+-.*?Live.*", r"\s*-.*?Edit.*", r"\s*-.*?Single.*", r"\s*-.*?Mono.*", r"\s*-.*?From.*",
+        r"\s*-.*?Stereo.*", r"\s*-.*?Original.*", r"\s*-.*?Radio.*", r"\s*-.*?Mix.*", r"\s*-.*?Version.*"
     ]
     
     for pattern in terms_to_remove:
