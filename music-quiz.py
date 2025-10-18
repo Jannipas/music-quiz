@@ -7,6 +7,7 @@
 #
 # New Changes:
 #   find_original_release_info(): Einzelne Query Abfragen für jeden Artist anstatt eine Abfrage für alle Artist
+#   terms_to_remove(): Neue Regex Patterns hinzugefügt, um Titelbereinigung zu verbessern
 #   Grau etwas heller gemacht
 #   Rotes Theme hinzugefügt
 # --------------------
