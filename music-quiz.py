@@ -17,19 +17,38 @@ import time
 import re
 from io import BytesIO
 import colorsys
+import logging
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from flask import Flask, render_template, redirect, url_for, request, session, jsonify
+from flask_talisman import Talisman
 from dotenv import load_dotenv
 from PIL import Image
 import requests
 import json
+from config import get_config
 
 load_dotenv()
 
+# --- LOGGING SETUP ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # --- FLASK-ANWENDUNG INITIALISIEREN ---
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY')
+config = get_config()
+app.config.from_object(config)
+
+# Initialize Talisman for security headers
+talisman = Talisman(
+    app,
+    force_https=config.TALISMAN_FORCE_HTTPS,
+    strict_transport_security=config.TALISMAN_STRICT_TRANSPORT_SECURITY,
+    content_security_policy=config.TALISMAN_CONTENT_SECURITY_POLICY
+)
 
 # --- SPOTIPY CACHE HANDLER FÜR FLASK SESSION ---
 class FlaskSessionCacheHandler(spotipy.cache_handler.CacheHandler):
@@ -70,7 +89,18 @@ icon_svg = 'icon2.svg'
 icon_png = 'icon2.png'
 TOKEN_INFO_KEY = 'spotify_token_info'
 
+# --- INPUT VALIDATION FUNCTIONS ---
+def validate_position_ms(value):
+    """Validate seek position"""
+    if not isinstance(value, int):
+        return False
+    if value < 0 or value > 3600000:  # Max 1 hour
+        return False
+    return True
 
+def validate_boolean(value):
+    """Validate boolean input"""
+    return isinstance(value, bool)
 
 # --- FUNKTIONEN FÜR DIE AUTHENTIFIZIERUNG ---
 def create_spotify_oauth():
@@ -134,7 +164,7 @@ def analyze_album_art(image_url):
         if not highlight_color: return PALETTES['default']
         return {'name': 'Album-Cover', 'highlight_color': highlight_color, 'button_hover_color': darken_color(highlight_color), 'button_text_color': get_text_color_for_bg(highlight_color)}
     except Exception as e:
-        print(f"Fehler bei der Farbanalyse: {e}")
+        logger.error(f"Fehler bei der Farbanalyse: {e}")
         return PALETTES['default']
 
 # --- HTML FÜR THEME-PICKER ERSTELLEN ---
@@ -238,10 +268,10 @@ def find_original_release_info(sp, item):
             }
 
     except Exception as e:
-        print(f"Fehler bei der Spotify-Suche für das Originaljahr: {e}")
+        logger.error(f"Fehler bei der Spotify-Suche für das Originaljahr: {e}")
 
     # Notfall
-    print("No Candidates")
+    logger.warning("No candidates found for original release info")
     return {
         'year': initial_release_year,
         'album_name': item["album"]["name"],
@@ -368,7 +398,7 @@ def home():
         )
 
     except Exception as e:
-        print(f"Ein unerwarteter Fehler ist in der home-Route aufgetreten: {e}")
+        logger.error(f"Ein unerwarteter Fehler ist in der home-Route aufgetreten: {e}", exc_info=True)
         return render_template('true_error.html', e=e, colors=colors, button_hover_scale=button_hover_scale)
 
 # --- PLAYER STEUERUNGS ROUTEN ---
@@ -385,24 +415,47 @@ def check_song():
 @app.route('/seek', methods=['POST'])
 def seek():
     sp = get_spotify_client()
-    if not sp: return jsonify({'success': False, 'error': 'Not logged in'})
+    if not sp:
+        return jsonify({'success': False, 'error': 'Not logged in'}), 401
+
     try:
-        position_ms = request.get_json().get('position_ms')
-        if isinstance(position_ms, int):
-            sp.seek_track(position_ms)
-            return jsonify({'success': True})
-        return jsonify({'success': False, 'error': 'Invalid position'})
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid JSON'}), 400
+
+        position_ms = data.get('position_ms')
+        if position_ms is None:
+            return jsonify({'success': False, 'error': 'Missing position_ms'}), 400
+
+        if not validate_position_ms(position_ms):
+            return jsonify({'success': False, 'error': 'Invalid position value'}), 400
+
+        sp.seek_track(position_ms)
+        return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        logger.error(f"Error in seek endpoint: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 @app.route('/toggle-player-mode', methods=['POST'])
 def toggle_player_mode():
     try:
-        session['player_mode'] = request.get_json().get('playerMode', False)
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid JSON'}), 400
+
+        player_mode = data.get('playerMode')
+        if player_mode is None:
+            return jsonify({'success': False, 'error': 'Missing playerMode'}), 400
+
+        if not validate_boolean(player_mode):
+            return jsonify({'success': False, 'error': 'Invalid playerMode value'}), 400
+
+        session['player_mode'] = player_mode
         session.modified = True
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        logger.error(f"Error in toggle-player-mode endpoint: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 @app.route("/solve")
 def solve():
@@ -445,19 +498,19 @@ def play_pause():
             sp.start_playback()
     except spotipy.exceptions.SpotifyException as e:
         if "No active device found" in str(e) or "Player command failed" in str(e):
-            print("Kein aktives Gerät gefunden. Suche nach verfügbaren Geräten.")
+            logger.info("Kein aktives Gerät gefunden. Suche nach verfügbaren Geräten.")
             try:
                 devices = sp.devices().get('devices', [])
                 if devices:
                     priorities = {'Smartphone': 1, 'Computer': 2, 'Speaker': 3}
                     sorted_devices = sorted(devices, key=lambda d: priorities.get(d['type'], 99))
                     best_device_id = sorted_devices[0]['id']
-                    print(f"Aktiviere bestes Gerät: {sorted_devices[0]['name']}")
+                    logger.info(f"Aktiviere bestes Gerät: {sorted_devices[0]['name']}")
                     sp.transfer_playback(best_device_id, force_play=True)
             except Exception as device_error:
-                print(f"Fehler bei der Geräteaktivierung: {device_error}")
+                logger.error(f"Fehler bei der Geräteaktivierung: {device_error}")
         else:
-            print(f"Spotify-API-Fehler in play_pause: {e}")
+            logger.error(f"Spotify-API-Fehler in play_pause: {e}")
     
     time.sleep(0.5)
     return redirect(url_for('home'))
@@ -472,7 +525,7 @@ def play_random():
         sp.start_playback(context_uri=playlist_uri)
         time.sleep(0.7)
     except Exception as e:
-        print(f"Fehler beim Starten der Playlist: {e}")
+        logger.error(f"Fehler beim Starten der Playlist: {e}")
     return redirect(url_for('home'))
 
 @app.route("/set-theme/<theme_name>")
@@ -481,5 +534,50 @@ def set_theme(theme_name):
         session['theme'] = theme_name
     return redirect(url_for('home'))
 
+# --- ERROR HANDLERS ---
+@app.errorhandler(404)
+def not_found(e):
+    """Handle 404 errors"""
+    colors = PALETTES['default']
+    return render_template('error.html',
+                         e="Seite nicht gefunden (404)",
+                         colors=colors,
+                         image_html_error='<div class="placeholder-quiz"><svg class="quiz-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></div>',
+                         album_art_hover_scale=album_art_hover_scale,
+                         arrow_hover_scale=arrow_hover_scale,
+                         button_hover_scale=button_hover_scale,
+                         arrow_size=arrow_size,
+                         arrow_thickness=arrow_thickness), 404
+
+@app.errorhandler(500)
+def internal_error(e):
+    """Handle 500 errors"""
+    logger.error(f"Internal server error: {e}", exc_info=True)
+    colors = PALETTES['default']
+    return render_template('error.html',
+                         e="Interner Serverfehler (500)",
+                         colors=colors,
+                         image_html_error='<div class="placeholder-quiz"><svg class="quiz-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></div>',
+                         album_art_hover_scale=album_art_hover_scale,
+                         arrow_hover_scale=arrow_hover_scale,
+                         button_hover_scale=button_hover_scale,
+                         arrow_size=arrow_size,
+                         arrow_thickness=arrow_thickness), 500
+
+@app.errorhandler(429)
+def rate_limit_error(e):
+    """Handle 429 rate limit errors (for Commit 2)"""
+    colors = PALETTES['default']
+    return render_template('error.html',
+                         e="Zu viele Anfragen. Bitte versuchen Sie es später erneut (429)",
+                         colors=colors,
+                         image_html_error='<div class="placeholder-quiz"><svg class="quiz-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg></div>',
+                         album_art_hover_scale=album_art_hover_scale,
+                         arrow_hover_scale=arrow_hover_scale,
+                         button_hover_scale=button_hover_scale,
+                         arrow_size=arrow_size,
+                         arrow_thickness=arrow_thickness), 429
+
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', debug=True)
+    port = int(os.environ.get('PORT', 5002))
+    app.run(host='0.0.0.0', port=port, debug=app.config['DEBUG'])
