@@ -18,7 +18,7 @@ class Config:
         'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         'font-src': ["'self'", 'https://fonts.gstatic.com'],
         'img-src': ["'self'", 'data:', 'https://i.scdn.co'],
-        'script-src': ["'self'"],
+        'script-src': ["'self'", "'unsafe-inline'"],  # Allow inline scripts for songData
     }
 
 class DevelopmentConfig(Config):
